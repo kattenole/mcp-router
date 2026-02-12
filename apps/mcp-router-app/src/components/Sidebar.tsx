@@ -66,7 +66,7 @@ export function Sidebar({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-space-700 flex items-center justify-center">
-              <span className="text-xs">{username[0].toUpperCase()}</span>
+              <span className="text-xs">{username ? username[0].toUpperCase() : "?"}</span>
             </div>
             <span className="text-xs text-space-400">{username}</span>
           </div>
