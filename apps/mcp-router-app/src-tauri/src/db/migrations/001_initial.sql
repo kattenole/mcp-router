@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     id TEXT PRIMARY KEY,
     client_id TEXT NOT NULL,
     server_access TEXT NOT NULL DEFAULT '{}',
-    issued_at INTEGER NOT NULL
+    issued_at INTEGER NOT NULL,
+    expires_at INTEGER
 );
 
 -- Indexes for performance

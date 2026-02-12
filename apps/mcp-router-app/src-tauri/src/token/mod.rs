@@ -8,6 +8,9 @@ use crate::models::*;
 pub struct TokenService;
 
 impl TokenService {
+    /// Default token TTL: 90 days in seconds
+    const DEFAULT_TOKEN_TTL_SECONDS: i64 = 90 * 24 * 60 * 60;
+
     pub fn generate_token(db: &Database, req: GenerateTokenRequest) -> Result<ApiToken, AppError> {
         let conn = db.conn.lock().unwrap();
         // Use 24 bytes (192 bits) of cryptographic randomness
@@ -19,6 +22,9 @@ impl TokenService {
         let server_access = serde_json::to_string(&req.server_access)
             .map_err(|e| AppError::Serde(e))?;
 
+        let ttl = req.expires_in_seconds.unwrap_or(Self::DEFAULT_TOKEN_TTL_SECONDS);
+        let expires_at = now + ttl;
+
         // Remove existing token for same client
         conn.execute(
             "DELETE FROM api_tokens WHERE client_id = ?1",
@@ -26,8 +32,8 @@ impl TokenService {
         )?;
 
         conn.execute(
-            "INSERT INTO api_tokens (id, client_id, server_access, issued_at) VALUES (?1, ?2, ?3, ?4)",
-            params![id, req.client_id, server_access, now],
+            "INSERT INTO api_tokens (id, client_id, server_access, issued_at, expires_at) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![id, req.client_id, server_access, now, expires_at],
         )?;
 
         Ok(ApiToken {
@@ -35,13 +41,14 @@ impl TokenService {
             client_id: req.client_id,
             server_access,
             issued_at: now,
+            expires_at: Some(expires_at),
         })
     }
 
     pub fn list_tokens(db: &Database) -> Result<Vec<ApiToken>, AppError> {
         let conn = db.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, client_id, server_access, issued_at FROM api_tokens ORDER BY issued_at DESC"
+            "SELECT id, client_id, server_access, issued_at, expires_at FROM api_tokens ORDER BY issued_at DESC"
         )?;
 
         let tokens = stmt.query_map([], |row| {
@@ -50,6 +57,7 @@ impl TokenService {
                 client_id: row.get(1)?,
                 server_access: row.get(2)?,
                 issued_at: row.get(3)?,
+                expires_at: row.get(4)?,
             })
         })?.collect::<Result<Vec<_>, _>>()?;
 
@@ -67,8 +75,8 @@ impl TokenService {
 
     pub fn validate_token(db: &Database, token_id: &str) -> Result<ApiToken, AppError> {
         let conn = db.conn.lock().unwrap();
-        conn.query_row(
-            "SELECT id, client_id, server_access, issued_at FROM api_tokens WHERE id = ?1",
+        let token = conn.query_row(
+            "SELECT id, client_id, server_access, issued_at, expires_at FROM api_tokens WHERE id = ?1",
             params![token_id],
             |row| {
                 Ok(ApiToken {
@@ -76,9 +84,19 @@ impl TokenService {
                     client_id: row.get(1)?,
                     server_access: row.get(2)?,
                     issued_at: row.get(3)?,
+                    expires_at: row.get(4)?,
                 })
             },
-        ).map_err(|_| AppError::Unauthorized)
+        ).map_err(|_| AppError::Unauthorized)?;
+
+        // Enforce token expiration
+        if let Some(expires_at) = token.expires_at {
+            if Utc::now().timestamp() > expires_at {
+                return Err(AppError::Unauthorized);
+            }
+        }
+
+        Ok(token)
     }
 }
 
