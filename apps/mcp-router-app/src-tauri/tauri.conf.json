@@ -42,18 +42,7 @@
   },
   "plugins": {
     "shell": {
-      "open": true,
-      "scope": {
-        "allow": [
-          {
-            "name": "run-mcp-server",
-            "cmd": "",
-            "args": true,
-            "sidecar": false
-          }
-        ],
-        "deny": []
-      }
+      "open": true
     }
   }
 }
