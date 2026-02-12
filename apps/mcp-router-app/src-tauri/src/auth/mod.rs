@@ -66,8 +66,11 @@ impl AuthService {
             return Err(AppError::Auth("Invalid username or password".to_string()));
         }
 
-        // Generate a session token
-        let token = format!("mcpr_{}", Uuid::new_v4().to_string().replace("-", ""));
+        // Generate a cryptographically secure session token
+        use rand::RngCore;
+        let mut token_bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut token_bytes);
+        let token = format!("mcpr_{}", base64_url_encode(&token_bytes));
 
         Ok(LoginResponse {
             token,
@@ -109,4 +112,9 @@ impl AuthService {
         let count: i64 = conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
         Ok(count > 0)
     }
+}
+
+fn base64_url_encode(data: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(data)
 }

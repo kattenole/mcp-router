@@ -1,5 +1,4 @@
 use rusqlite::params;
-use uuid::Uuid;
 use chrono::Utc;
 
 use crate::db::Database;
@@ -11,7 +10,11 @@ pub struct TokenService;
 impl TokenService {
     pub fn generate_token(db: &Database, req: GenerateTokenRequest) -> Result<ApiToken, AppError> {
         let conn = db.conn.lock().unwrap();
-        let id = format!("mcpr_{}", base64_url_encode(&Uuid::new_v4().as_bytes()[..]));
+        // Use 24 bytes (192 bits) of cryptographic randomness
+        use rand::RngCore;
+        let mut token_bytes = [0u8; 24];
+        rand::thread_rng().fill_bytes(&mut token_bytes);
+        let id = format!("mcpr_{}", base64_url_encode(&token_bytes));
         let now = Utc::now().timestamp();
         let server_access = serde_json::to_string(&req.server_access)
             .map_err(|e| AppError::Serde(e))?;
