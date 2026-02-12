@@ -72,11 +72,13 @@ async fn delete_server(
     state: tauri::State<'_, AppState>,
     server_id: String,
 ) -> Result<(), AppError> {
-    let mut clients = state.clients.lock().await;
-    if let Some(mut client) = clients.remove(&server_id) {
-        let _ = client.close().await;
+    let client_arc = {
+        let mut clients = state.clients.lock().await;
+        clients.remove(&server_id)
+    };
+    if let Some(client_arc) = client_arc {
+        let _ = client_arc.lock().await.close().await;
     }
-    drop(clients);
     server::ServerService::delete_server(&state.db, &server_id)
 }
 
@@ -87,9 +89,12 @@ async fn toggle_server(
     disabled: bool,
 ) -> Result<McpServer, AppError> {
     if disabled {
-        let mut clients = state.clients.lock().await;
-        if let Some(mut client) = clients.remove(&server_id) {
-            let _ = client.close().await;
+        let client_arc = {
+            let mut clients = state.clients.lock().await;
+            clients.remove(&server_id)
+        };
+        if let Some(client_arc) = client_arc {
+            let _ = client_arc.lock().await.close().await;
         }
     }
     server::ServerService::toggle_server(&state.db, &server_id, disabled)
@@ -150,7 +155,7 @@ async fn start_server(
         None, None, "StartServer", None, "success", None, None,
     );
 
-    state.clients.lock().await.insert(srv.id.clone(), client);
+    state.clients.lock().await.insert(srv.id.clone(), Arc::new(Mutex::new(client)));
     Ok(status)
 }
 
@@ -159,8 +164,12 @@ async fn stop_server(
     state: tauri::State<'_, AppState>,
     server_id: String,
 ) -> Result<(), AppError> {
-    let mut clients = state.clients.lock().await;
-    if let Some(mut client) = clients.remove(&server_id) {
+    let client_arc = {
+        let mut clients = state.clients.lock().await;
+        clients.remove(&server_id)
+    };
+    if let Some(client_arc) = client_arc {
+        let mut client = client_arc.lock().await;
         client.close().await?;
         let _ = logging::LoggingService::log_request(
             &state.db, Some(&server_id), Some(&client.server_name),
@@ -175,8 +184,12 @@ async fn get_server_status(
     state: tauri::State<'_, AppState>,
     server_id: String,
 ) -> Result<ServerStatus, AppError> {
-    let clients = state.clients.lock().await;
-    Ok(if let Some(client) = clients.get(&server_id) {
+    let client_arc = {
+        let clients = state.clients.lock().await;
+        clients.get(&server_id).cloned()
+    };
+    Ok(if let Some(client_arc) = client_arc {
+        let client = client_arc.lock().await;
         ServerStatus {
             server_id: server_id.clone(),
             is_running: true,
@@ -193,9 +206,12 @@ async fn list_server_tools(
     state: tauri::State<'_, AppState>,
     server_id: String,
 ) -> Result<Vec<McpTool>, AppError> {
-    let mut clients = state.clients.lock().await;
-    if let Some(client) = clients.get_mut(&server_id) {
-        client.list_tools().await
+    let client_arc = {
+        let clients = state.clients.lock().await;
+        clients.get(&server_id).cloned()
+    };
+    if let Some(client_arc) = client_arc {
+        client_arc.lock().await.list_tools().await
     } else {
         Err(AppError::Server(format!("Server {} is not running", server_id)))
     }
@@ -209,11 +225,14 @@ async fn call_tool(
     arguments: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, AppError> {
     let start = std::time::Instant::now();
-    let mut clients = state.clients.lock().await;
-    let client = clients.get_mut(&server_id).ok_or_else(|| {
-        AppError::Server(format!("Server {} is not running", server_id))
-    })?;
+    let client_arc = {
+        let clients = state.clients.lock().await;
+        clients.get(&server_id).cloned().ok_or_else(|| {
+            AppError::Server(format!("Server {} is not running", server_id))
+        })?
+    };
 
+    let mut client = client_arc.lock().await;
     let result = client.call_tool(&tool_name, arguments.clone()).await;
     let duration = start.elapsed().as_millis() as i64;
     let params_json = serde_json::json!({"tool": tool_name, "arguments": arguments}).to_string();
@@ -241,14 +260,32 @@ async fn get_all_server_statuses(
     state: tauri::State<'_, AppState>,
 ) -> Result<Vec<ServerStatus>, AppError> {
     let servers = server::ServerService::list_servers(&state.db)?;
-    let clients = state.clients.lock().await;
-    Ok(servers.iter().map(|s| {
-        if let Some(client) = clients.get(&s.id) {
-            ServerStatus { server_id: s.id.clone(), is_running: true, tools: client.tools.clone(), error: None }
+    let client_arcs: Vec<_> = {
+        let clients = state.clients.lock().await;
+        servers.iter().map(|s| {
+            (s.id.clone(), clients.get(&s.id).cloned())
+        }).collect()
+    };
+    let mut statuses = Vec::with_capacity(client_arcs.len());
+    for (server_id, client_arc) in client_arcs {
+        if let Some(client_arc) = client_arc {
+            let client = client_arc.lock().await;
+            statuses.push(ServerStatus {
+                server_id,
+                is_running: true,
+                tools: client.tools.clone(),
+                error: None,
+            });
         } else {
-            ServerStatus { server_id: s.id.clone(), is_running: false, tools: vec![], error: None }
+            statuses.push(ServerStatus {
+                server_id,
+                is_running: false,
+                tools: vec![],
+                error: None,
+            });
         }
-    }).collect())
+    }
+    Ok(statuses)
 }
 
 // ============== Project Commands ==============
