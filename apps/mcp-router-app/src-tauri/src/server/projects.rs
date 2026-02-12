@@ -80,16 +80,17 @@ impl ProjectService {
 
     pub fn update_project(db: &Database, project_id: &str, name: Option<String>, optimization: Option<String>) -> Result<Project, AppError> {
         let conn = db.conn.lock().unwrap();
+        let now = Utc::now().to_rfc3339();
         if let Some(ref n) = name {
             conn.execute(
-                "UPDATE projects SET name = ?1, updated_at = datetime('now') WHERE id = ?2",
-                params![n, project_id],
+                "UPDATE projects SET name = ?1, updated_at = ?2 WHERE id = ?3",
+                params![n, now, project_id],
             )?;
         }
         if let Some(ref o) = optimization {
             conn.execute(
-                "UPDATE projects SET optimization = ?1, updated_at = datetime('now') WHERE id = ?2",
-                params![o, project_id],
+                "UPDATE projects SET optimization = ?1, updated_at = ?2 WHERE id = ?3",
+                params![o, now, project_id],
             )?;
         }
         drop(conn);
