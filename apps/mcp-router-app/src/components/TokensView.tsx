@@ -99,6 +99,22 @@ export function TokensView({ servers, onRefresh }: TokensViewProps) {
                     Client: <span className="text-space-300">{token.client_id}</span>
                     {" · "}
                     Issued: {new Date(token.issued_at * 1000).toLocaleDateString()}
+                    {token.expires_at != null && (
+                      <>
+                        {" · "}
+                        {Date.now() > token.expires_at * 1000 ? (
+                          <span className="text-red-400">Expired: {new Date(token.expires_at * 1000).toLocaleDateString()}</span>
+                        ) : (
+                          <span>Expires: {new Date(token.expires_at * 1000).toLocaleDateString()}</span>
+                        )}
+                      </>
+                    )}
+                    {token.expires_at == null && (
+                      <>
+                        {" · "}
+                        <span className="text-accent-orange">No expiry</span>
+                      </>
+                    )}
                   </p>
                 </div>
                 <button
@@ -127,14 +143,27 @@ function GenerateTokenForm({
 }) {
   const [clientId, setClientId] = useState("");
   const [access, setAccess] = useState<Record<string, boolean>>({});
+  const [expiresInSeconds, setExpiresInSeconds] = useState<number>(90 * 24 * 60 * 60); // 90 days default
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ApiToken | null>(null);
+
+  const TTL_OPTIONS = [
+    { label: "7 days", value: 7 * 24 * 60 * 60 },
+    { label: "30 days", value: 30 * 24 * 60 * 60 },
+    { label: "90 days", value: 90 * 24 * 60 * 60 },
+    { label: "180 days", value: 180 * 24 * 60 * 60 },
+    { label: "365 days", value: 365 * 24 * 60 * 60 },
+  ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const token = await generateToken({ client_id: clientId, server_access: access });
+      const token = await generateToken({
+        client_id: clientId,
+        server_access: access,
+        expires_in_seconds: expiresInSeconds,
+      });
       setResult(token);
     } catch (err) {
       alert(String(err));
@@ -205,6 +234,21 @@ function GenerateTokenForm({
             ))}
           </div>
         )}
+      </div>
+
+      <div>
+        <label className="block text-xs text-space-400 mb-1">Token Expiry</label>
+        <select
+          className="input-field"
+          value={expiresInSeconds}
+          onChange={(e) => setExpiresInSeconds(Number(e.target.value))}
+        >
+          {TTL_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="flex justify-end gap-2">

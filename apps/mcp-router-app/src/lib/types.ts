@@ -43,6 +43,7 @@ export interface ApiToken {
   client_id: string;
   server_access: string;
   issued_at: number;
+  expires_at: number | null;
 }
 
 export interface McpTool {
@@ -113,6 +114,8 @@ export interface CreateProjectRequest {
 export interface GenerateTokenRequest {
   client_id: string;
   server_access: Record<string, boolean>;
+  /** Token TTL in seconds. Defaults to 90 days on the backend if omitted. */
+  expires_in_seconds?: number;
 }
 
 export interface LogQueryParams {

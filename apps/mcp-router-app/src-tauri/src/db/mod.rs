@@ -30,6 +30,7 @@ impl Database {
 
         let migrations = vec![
             ("001_initial", include_str!("migrations/001_initial.sql")),
+            ("002_add_token_expiry", include_str!("migrations/002_add_token_expiry.sql")),
         ];
 
         for (id, sql) in migrations {

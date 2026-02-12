@@ -88,6 +88,7 @@ pub struct ApiToken {
     pub client_id: String,
     pub server_access: String,
     pub issued_at: i64,
+    pub expires_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,6 +165,8 @@ pub struct CreateProjectRequest {
 pub struct GenerateTokenRequest {
     pub client_id: String,
     pub server_access: std::collections::HashMap<String, bool>,
+    /// Token TTL in seconds. Defaults to 90 days if not specified.
+    pub expires_in_seconds: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
