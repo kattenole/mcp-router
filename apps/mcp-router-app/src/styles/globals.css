@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-space-700;
+  }
+  body {
+    @apply bg-space-950 text-white antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-space-600 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-space-500;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-accent-blue text-white rounded-lg font-medium text-sm
+           hover:bg-accent-blue/90 transition-all duration-200 active:scale-95
+           disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-secondary {
+    @apply px-4 py-2 bg-space-700 text-white rounded-lg font-medium text-sm
+           hover:bg-space-600 transition-all duration-200 active:scale-95
+           border border-space-600;
+  }
+  .btn-danger {
+    @apply px-4 py-2 bg-accent-red/10 text-accent-red rounded-lg font-medium text-sm
+           hover:bg-accent-red/20 transition-all duration-200 active:scale-95
+           border border-accent-red/30;
+  }
+  .card {
+    @apply bg-space-900/50 border border-space-700/50 rounded-xl p-5
+           backdrop-blur-sm transition-all duration-200;
+  }
+  .card-hover {
+    @apply card hover:border-space-600 hover:bg-space-800/50;
+  }
+  .input-field {
+    @apply w-full px-3 py-2 bg-space-800 border border-space-600 rounded-lg
+           text-white text-sm placeholder:text-space-400
+           focus:outline-none focus:ring-2 focus:ring-accent-blue/50 focus:border-accent-blue
+           transition-all duration-200;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  .badge-success {
+    @apply badge bg-accent-green/10 text-accent-green border border-accent-green/30;
+  }
+  .badge-error {
+    @apply badge bg-accent-red/10 text-accent-red border border-accent-red/30;
+  }
+  .badge-info {
+    @apply badge bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30;
+  }
+}

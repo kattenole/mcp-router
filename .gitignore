@@ -87,4 +87,7 @@ yarn.lock
 .kiro
 .vscode
 .serena
-.specstory
+.specstory# Rust / Tauri build artifacts
+target/
+apps/mcp-router-app/dist/
+apps/mcp-router-app/node_modules/
