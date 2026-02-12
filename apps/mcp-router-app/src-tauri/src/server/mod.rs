@@ -196,10 +196,13 @@ impl ServerService {
 
     pub fn update_tool_permissions(db: &Database, server_id: &str, permissions: &str) -> Result<(), AppError> {
         let conn = db.conn.lock().unwrap();
-        conn.execute(
+        let affected = conn.execute(
             "UPDATE servers SET tool_permissions = ?1, updated_at = datetime('now') WHERE id = ?2",
             params![permissions, server_id],
         )?;
+        if affected == 0 {
+            return Err(AppError::NotFound(format!("Server {} not found", server_id)));
+        }
         Ok(())
     }
 }
