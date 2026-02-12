@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { LoginPage } from "./pages/LoginPage";
 import { Dashboard } from "./pages/Dashboard";
-import { hasUsers } from "./lib/api";
+import { validateSession, logoutSession } from "./lib/api";
 
 type AuthState = {
   authenticated: boolean;
@@ -16,12 +16,25 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("mcpr_token");
-    const username = sessionStorage.getItem("mcpr_username");
-    if (token && username) {
-      setAuth({ authenticated: true, username });
-    }
-    setLoading(false);
+    const checkSession = async () => {
+      const token = sessionStorage.getItem("mcpr_token");
+      if (token) {
+        try {
+          const result = await validateSession(token);
+          if (result.valid && result.username) {
+            setAuth({ authenticated: true, username: result.username });
+          } else {
+            sessionStorage.removeItem("mcpr_token");
+            sessionStorage.removeItem("mcpr_username");
+          }
+        } catch {
+          sessionStorage.removeItem("mcpr_token");
+          sessionStorage.removeItem("mcpr_username");
+        }
+      }
+      setLoading(false);
+    };
+    checkSession();
   }, []);
 
   const handleLogin = (username: string, token: string) => {
@@ -30,7 +43,15 @@ export default function App() {
     setAuth({ authenticated: true, username });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const token = sessionStorage.getItem("mcpr_token");
+    if (token) {
+      try {
+        await logoutSession(token);
+      } catch {
+        // Proceed with local logout even if server-side cleanup fails
+      }
+    }
     sessionStorage.removeItem("mcpr_token");
     sessionStorage.removeItem("mcpr_username");
     setAuth({ authenticated: false, username: null });

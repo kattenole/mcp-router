@@ -36,6 +36,22 @@ async fn has_users(state: tauri::State<'_, AppState>) -> Result<bool, AppError> 
     auth::AuthService::has_users(&state.db)
 }
 
+#[tauri::command]
+async fn validate_session(
+    state: tauri::State<'_, AppState>,
+    token: String,
+) -> Result<ValidateSessionResponse, AppError> {
+    auth::AuthService::validate_session(&state.db, &token)
+}
+
+#[tauri::command]
+async fn logout(
+    state: tauri::State<'_, AppState>,
+    token: String,
+) -> Result<(), AppError> {
+    auth::AuthService::logout(&state.db, &token)
+}
+
 // ============== Server Commands ==============
 
 #[tauri::command]
@@ -360,7 +376,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            login, change_password, has_users,
+            login, change_password, has_users, validate_session, logout,
             create_server, list_servers, get_server, update_server, delete_server,
             toggle_server, update_tool_permissions,
             start_server, stop_server, get_server_status, list_server_tools,

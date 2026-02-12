@@ -6,6 +6,7 @@ import type {
   ServerStatus,
   McpTool,
   LoginResponse,
+  ValidateSessionResponse,
   LogQueryResult,
   AppStats,
   CreateServerRequest,
@@ -31,6 +32,12 @@ export const changePassword = (
   });
 
 export const hasUsers = () => invoke<boolean>("has_users");
+
+export const validateSession = (token: string) =>
+  invoke<ValidateSessionResponse>("validate_session", { token });
+
+export const logoutSession = (token: string) =>
+  invoke<void>("logout", { token });
 
 // Servers
 export const createServer = (req: CreateServerRequest) =>
