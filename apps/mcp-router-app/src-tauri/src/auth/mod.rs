@@ -7,7 +7,10 @@ use uuid::Uuid;
 
 use crate::db::Database;
 use crate::errors::AppError;
-use crate::models::{LoginResponse, User};
+use crate::models::{LoginResponse, User, ValidateSessionResponse};
+
+/// Session expiry duration: 7 days in seconds.
+const SESSION_EXPIRY_SECS: i64 = 7 * 24 * 60 * 60;
 
 pub struct AuthService;
 
@@ -72,10 +75,83 @@ impl AuthService {
         rand::thread_rng().fill_bytes(&mut token_bytes);
         let token = format!("mcpr_{}", base64_url_encode(&token_bytes));
 
+        // Store a SHA-256 hash of the token in the sessions table
+        let token_hash = sha256_hex(&token);
+        let expires_at = chrono::Utc::now()
+            .checked_add_signed(chrono::Duration::seconds(SESSION_EXPIRY_SECS))
+            .unwrap_or_else(chrono::Utc::now)
+            .to_rfc3339();
+
+        // Remove any existing sessions for this user (single-session policy)
+        conn.execute(
+            "DELETE FROM sessions WHERE user_id = ?1",
+            params![user.id],
+        )?;
+
+        conn.execute(
+            "INSERT INTO sessions (token_hash, user_id, username, expires_at) VALUES (?1, ?2, ?3, ?4)",
+            params![token_hash, user.id, user.username, expires_at],
+        )?;
+
         Ok(LoginResponse {
             token,
             username: user.username,
         })
+    }
+
+    /// Validate a session token against the database.
+    /// Returns the associated username if the session is valid and not expired.
+    pub fn validate_session(db: &Database, token: &str) -> Result<ValidateSessionResponse, AppError> {
+        let conn = db.conn.lock().unwrap();
+        let token_hash = sha256_hex(token);
+
+        let result = conn.query_row(
+            "SELECT username, expires_at FROM sessions WHERE token_hash = ?1",
+            params![token_hash],
+            |row| {
+                let username: String = row.get(0)?;
+                let expires_at: String = row.get(1)?;
+                Ok((username, expires_at))
+            },
+        );
+
+        match result {
+            Ok((username, expires_at)) => {
+                // Check if the session has expired
+                if let Ok(expiry) = chrono::DateTime::parse_from_rfc3339(&expires_at) {
+                    if expiry < chrono::Utc::now() {
+                        // Clean up expired session
+                        let _ = conn.execute(
+                            "DELETE FROM sessions WHERE token_hash = ?1",
+                            params![token_hash],
+                        );
+                        return Ok(ValidateSessionResponse {
+                            valid: false,
+                            username: None,
+                        });
+                    }
+                }
+                Ok(ValidateSessionResponse {
+                    valid: true,
+                    username: Some(username),
+                })
+            }
+            Err(_) => Ok(ValidateSessionResponse {
+                valid: false,
+                username: None,
+            }),
+        }
+    }
+
+    /// Invalidate a session token (logout).
+    pub fn logout(db: &Database, token: &str) -> Result<(), AppError> {
+        let conn = db.conn.lock().unwrap();
+        let token_hash = sha256_hex(token);
+        conn.execute(
+            "DELETE FROM sessions WHERE token_hash = ?1",
+            params![token_hash],
+        )?;
+        Ok(())
     }
 
     pub fn change_password(
@@ -104,6 +180,12 @@ impl AuthService {
             params![new_hash, username],
         )?;
 
+        // Invalidate all existing sessions for this user after password change
+        conn.execute(
+            "DELETE FROM sessions WHERE username = ?1",
+            params![username],
+        )?;
+
         Ok(())
     }
 
@@ -117,4 +199,17 @@ impl AuthService {
 fn base64_url_encode(data: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(data)
+}
+
+fn sha256_hex(input: &str) -> String {
+    use std::fmt::Write;
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    let result = hasher.finalize();
+    let mut hex = String::with_capacity(64);
+    for byte in result.iter() {
+        let _ = write!(hex, "{:02x}", byte);
+    }
+    hex
 }

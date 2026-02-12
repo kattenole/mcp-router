@@ -63,6 +63,11 @@ export interface LoginResponse {
   username: string;
 }
 
+export interface ValidateSessionResponse {
+  valid: boolean;
+  username: string | null;
+}
+
 export interface AppStats {
   total_servers: number;
   active_servers: number;

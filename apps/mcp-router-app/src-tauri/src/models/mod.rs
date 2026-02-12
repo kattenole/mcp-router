@@ -124,6 +124,12 @@ pub struct LoginResponse {
     pub username: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ValidateSessionResponse {
+    pub valid: bool,
+    pub username: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CreateServerRequest {
     pub name: String,
