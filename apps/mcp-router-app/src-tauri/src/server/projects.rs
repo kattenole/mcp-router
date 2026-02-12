@@ -66,15 +66,18 @@ impl ProjectService {
 
     pub fn delete_project(db: &Database, project_id: &str) -> Result<(), AppError> {
         let conn = db.conn.lock().unwrap();
+        let tx = conn.unchecked_transaction()?;
         // Unassign servers from this project
-        conn.execute(
+        tx.execute(
             "UPDATE servers SET project_id = NULL WHERE project_id = ?1",
             params![project_id],
         )?;
-        let affected = conn.execute("DELETE FROM projects WHERE id = ?1", params![project_id])?;
+        let affected = tx.execute("DELETE FROM projects WHERE id = ?1", params![project_id])?;
         if affected == 0 {
+            tx.rollback().ok();
             return Err(AppError::NotFound(format!("Project {} not found", project_id)));
         }
+        tx.commit()?;
         Ok(())
     }
 
