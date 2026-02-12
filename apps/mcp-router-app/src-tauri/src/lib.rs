@@ -16,5 +16,5 @@ use mcp::McpClient;
 
 pub struct AppState {
     pub db: Database,
-    pub clients: Arc<Mutex<HashMap<String, McpClient>>>,
+    pub clients: Arc<Mutex<HashMap<String, Arc<Mutex<McpClient>>>>>,
 }
